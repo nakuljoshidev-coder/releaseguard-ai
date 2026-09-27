@@ -15,7 +15,8 @@
     "pr-comment": "node scripts/pr-commenter.js",
     "simulate": "node scripts/simulate-pipeline.js",
     "test:sandbox": "node scripts/migration-sandbox.js",
-    "git-diff": "node scripts/git-diff-scanner.js"
+    "git-diff": "node scripts/git-diff-scanner.js",
+    "release-notes": "node scripts/generate-release-notes.js"
   },
   "dependencies": {
     "express": "^4.18.2",

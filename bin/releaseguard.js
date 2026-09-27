@@ -11,10 +11,12 @@
  *   releaseguard ui           Launch the dashboard server on port 3000
  *   releaseguard dba-signoff  Run verification with --approve-db-risks
  *   releaseguard comment      Output GitHub PR markdown comment
+ *   releaseguard notes        Generate RELEASE_NOTES.md (autonomous synthesizer)
  *
  * Flags:
  *   --help / -h   Show help
  *   -v            Print version and exit
+ *   --json        (notes) also emit raw JSON metadata
  */
 
 const { execSync, spawnSync } = require('child_process');
@@ -38,7 +40,8 @@ const SCRIPTS       = path.join(ROOT, 'scripts');
 const CHECK_SCRIPT  = path.join(SCRIPTS, 'pre-flight-check.js');
 const FIX_SCRIPT    = path.join(SCRIPTS, 'auto-fix.js');
 const PR_SCRIPT     = path.join(SCRIPTS, 'pr-commenter.js');
-const SANDBOX_SCRIPT = path.join(SCRIPTS, 'migration-sandbox.js');
+const SANDBOX_SCRIPT   = path.join(SCRIPTS, 'migration-sandbox.js');
+const NOTES_SCRIPT     = path.join(SCRIPTS, 'generate-release-notes.js');
 const DASHBOARD_SERVER = path.join(ROOT, 'dashboard', 'server.js');
 
 // ─── Box drawing ──────────────────────────────────────────────────────────────
@@ -178,6 +181,13 @@ function cmdComment() {
   process.exit(code);
 }
 
+function cmdNotes() {
+  printBanner('notes — release notes synthesizer');
+  const extraArgs = process.argv.slice(4); // pass through --json / --dry
+  const code = runScript(NOTES_SCRIPT, extraArgs);
+  process.exit(code);
+}
+
 function cmdVerifyDb() {
   printBanner('verify-db — migration dry-run sandbox');
   const code = runScript(SANDBOX_SCRIPT);
@@ -215,6 +225,7 @@ function cmdHelp() {
     `    ${G('audit')}         Run pre-flight checks and print a formatted findings table`,
     `    ${G('fix')}           Trigger autonomous remediation engine`,
     `    ${G('verify-db')}     Run migration dry-run sandbox (up+down roundtrip in SQLite)`,
+    `    ${G('notes')}         Generate RELEASE_NOTES.md (autonomous changelog synthesizer)`,
     `    ${G('ui')}            Launch the interactive dashboard on http://localhost:3000`,
     `    ${G('dba-signoff')}   Run verification with DBA risk acknowledgement`,
     `    ${G('comment')}       Generate and output GitHub PR markdown comment`,
@@ -223,12 +234,16 @@ function cmdHelp() {
     `  ${BO('Flags:')}`,
     `    ${Y('--help')} / ${Y('-h')}   Show this help message`,
     `    ${Y('-v')}             Print version and exit`,
+    `    ${Y('--json')}         (notes) also emit raw JSON metadata to stdout`,
+    `    ${Y('--dry')}          (notes) print without writing RELEASE_NOTES.md`,
     '',
     `  ${BO('Examples:')}`,
     `    ${DI('$ releaseguard check')}`,
     `    ${DI('$ releaseguard audit')}`,
     `    ${DI('$ releaseguard fix')}`,
     `    ${DI('$ releaseguard verify-db')}`,
+    `    ${DI('$ releaseguard notes')}`,
+    `    ${DI('$ releaseguard notes --json')}`,
     `    ${DI('$ releaseguard ui')}`,
     `    ${DI('$ releaseguard dba-signoff')}`,
     `    ${DI('$ releaseguard comment')}`,
@@ -244,6 +259,7 @@ switch (cmd) {
   case 'audit':       cmdAudit();       break;
   case 'fix':         cmdFix();         break;
   case 'verify-db':   cmdVerifyDb();    break;
+  case 'notes':       cmdNotes();       break;
   case 'ui':          cmdUi();          break;
   case 'dba-signoff': cmdDbaSignoff();  break;
   case 'comment':     cmdComment();     break;

@@ -18,6 +18,9 @@ jobs:
         with:
           node-version: 20
 
+      - name: Install Dependencies
+        run: npm install --ignore-scripts || true
+
       - name: Run ReleaseGuard Pre-Flight Check (Certified Mode)
         run: node scripts/pre-flight-check.js --approve-db-risks
 

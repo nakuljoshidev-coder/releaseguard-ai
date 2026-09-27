@@ -1,0 +1,35 @@
+{
+  "name": "orders-api",
+  "version": "2.1.0",
+  "description": "Orders microservice REST API",
+  "main": "src/app.js",
+  "bin": {
+    "releaseguard": "./bin/releaseguard.js"
+  },
+  "scripts": {
+    "start": "node src/app.js",
+    "test": "jest --coverage --forceExit",
+    "migrate": "node scripts/migrate.js",
+    "lint": "eslint src/**/*.js",
+    "dashboard": "node dashboard/server.js",
+    "pr-comment": "node scripts/pr-commenter.js",
+    "simulate": "node scripts/simulate-pipeline.js",
+    "test:sandbox": "node scripts/migration-sandbox.js",
+    "git-diff": "node scripts/git-diff-scanner.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "joi": "^17.11.0",
+    "knex": "^3.1.0",
+    "pg": "^8.11.3"
+  },
+  "devDependencies": {
+    "better-sqlite3": "^13.0.3",
+    "eslint": "^8.56.0",
+    "jest": "^29.7.0",
+    "supertest": "^6.3.4"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

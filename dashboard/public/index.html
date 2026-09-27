@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ReleaseGuard AI — Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: { DEFAULT: '#1e3a5f', light: '#2a5298', accent: '#3b82f6' }
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+    body { font-family: 'Inter', system-ui, sans-serif; }
+    .mono { font-family: 'JetBrains Mono', monospace; }
+    .score-ring {
+      stroke-dasharray: 314;
+      stroke-dashoffset: 314;
+      transition: stroke-dashoffset 1.2s cubic-bezier(.4,0,.2,1);
+    }
+    .fade-in { animation: fadeIn .4s ease; }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
+    .spin { animation: spin 1s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    pre { white-space: pre-wrap; word-break: break-word; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #f1f5f9; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+    /* ── Live Terminal ─────────────────────────────────────────────────── */
+    .terminal-window {
+      background: #0d1117;
+      border-radius: 0 0 12px 12px;
+      padding: 16px;
+      min-height: 200px;
+      max-height: 420px;
+      overflow-y: auto;
+      font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+      font-size: 12px;
+      line-height: 1.65;
+      color: #c9d1d9;
+    }
+    .terminal-window::-webkit-scrollbar { width: 5px; }
+    .terminal-window::-webkit-scrollbar-track { background: #161b22; }
+    .terminal-window::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
+    .terminal-line { display: block; white-space: pre-wrap; word-break: break-all; }
+    .terminal-line.cmd   { color: #58a6ff; font-weight: 600; }
+    .terminal-line.done-ok  { color: #3fb950; font-weight: 600; }
+    .terminal-line.done-err { color: #f85149; font-weight: 600; }
+    .terminal-line.err   { color: #f85149; }
+    .terminal-cursor {
+      display: inline-block;
+      width: 8px; height: 14px;
+      background: #58a6ff;
+      vertical-align: text-bottom;
+      animation: blink 1s step-end infinite;
+    }
+    @keyframes blink { 0%,100%{opacity:1;} 50%{opacity:0;} }
+    .terminal-titlebar {
+      background: #161b22;
+      border-radius: 12px 12px 0 0;
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border-bottom: 1px solid #30363d;
+    }
+    .terminal-dot { width: 12px; height: 12px; border-radius: 50%; }
+    .stream-btn {
+      padding: 4px 12px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity .15s;
+      border: none;
+    }
+    .stream-btn:hover { opacity: .85; }
+    .stream-btn:active { opacity: .7; }
+    .stream-btn:disabled { opacity: .4; cursor: not-allowed; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen">
+
+  <!-- ── Header ── -->
+  <header class="bg-brand border-b border-slate-700 shadow-lg sticky top-0 z-20">
+    <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-lg bg-blue-500 flex items-center justify-center text-white font-bold text-lg select-none">R</div>
+        <div>
+          <h1 class="text-white font-bold text-lg leading-none">ReleaseGuard AI</h1>
+          <p class="text-blue-300 text-xs mt-0.5">Pre-Flight Release Auditor</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-4">
+        <span id="last-run" class="text-slate-400 text-xs mono hidden"></span>
+        <button id="run-btn" onclick="runAudit()"
+          class="flex items-center gap-2 px-5 py-2.5 bg-blue-500 hover:bg-blue-400 text-white text-sm font-semibold rounded-lg transition-all duration-150 shadow-md active:scale-95">
+          <svg id="run-icon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+          Run Pre-Flight Audit
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-6 py-8 space-y-8">
+
+    <!-- ── Verdict banner ── -->
+    <div id="verdict-banner" class="hidden fade-in rounded-xl p-4 flex items-center gap-3 border font-semibold text-sm"></div>
+
+    <!-- ── Top row: Risk score + Domain cards ── -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+
+      <!-- Risk score ring -->
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 flex flex-col items-center justify-center">
+        <p class="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-4">Risk Score</p>
+        <div class="relative w-32 h-32">
+          <svg class="w-full h-full -rotate-90" viewBox="0 0 108 108">
+            <circle cx="54" cy="54" r="50" fill="none" stroke="#e2e8f0" stroke-width="10"/>
+            <circle id="score-ring" class="score-ring" cx="54" cy="54" r="50" fill="none"
+              stroke="#3b82f6" stroke-width="10" stroke-linecap="round"/>
+          </svg>
+          <div class="absolute inset-0 flex flex-col items-center justify-center">
+            <span id="score-num" class="text-4xl font-bold text-slate-800 leading-none">—</span>
+            <span class="text-xs text-slate-400 mt-1">/ 10</span>
+          </div>
+        </div>
+        <div id="score-label" class="mt-4 text-sm font-semibold text-slate-400">Loading…</div>
+        <div id="version-badge" class="mt-2 text-xs mono text-slate-400"></div>
+      </div>
+
+      <!-- Domain cards (3) -->
+      <div class="md:col-span-3 grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div id="card-security"  class="domain-card bg-white rounded-2xl shadow-sm border border-slate-200 p-5 cursor-pointer hover:shadow-md transition-shadow" onclick="showDetail('security')">
+          <div class="flex items-start justify-between mb-3">
+            <div class="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-xl">🔒</div>
+            <span id="badge-security" class="status-badge text-xs font-bold px-2.5 py-1 rounded-full bg-slate-100 text-slate-400">—</span>
+          </div>
+          <p class="font-semibold text-slate-700 text-sm">Security &amp; Middleware</p>
+          <p id="issues-security" class="text-xs text-slate-400 mt-1">Loading…</p>
+        </div>
+        <div id="card-migrations" class="domain-card bg-white rounded-2xl shadow-sm border border-slate-200 p-5 cursor-pointer hover:shadow-md transition-shadow" onclick="showDetail('migrations')">
+          <div class="flex items-start justify-between mb-3">
+            <div class="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-xl">🗄️</div>
+            <span id="badge-migrations" class="status-badge text-xs font-bold px-2.5 py-1 rounded-full bg-slate-100 text-slate-400">—</span>
+          </div>
+          <p class="font-semibold text-slate-700 text-sm">DB Migration Safety</p>
+          <p id="issues-migrations" class="text-xs text-slate-400 mt-1">Loading…</p>
+        </div>
+        <div id="card-api" class="domain-card bg-white rounded-2xl shadow-sm border border-slate-200 p-5 cursor-pointer hover:shadow-md transition-shadow" onclick="showDetail('api')">
+          <div class="flex items-start justify-between mb-3">
+            <div class="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-xl">📋</div>
+            <span id="badge-api" class="status-badge text-xs font-bold px-2.5 py-1 rounded-full bg-slate-100 text-slate-400">—</span>
+          </div>
+          <p class="font-semibold text-slate-700 text-sm">API Contract Drift</p>
+          <p id="issues-api" class="text-xs text-slate-400 mt-1">Loading…</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Detail panel (shown on card click) ── -->
+    <div id="detail-panel" class="hidden fade-in bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+      <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+        <h2 id="detail-title" class="font-semibold text-slate-700"></h2>
+        <button onclick="document.getElementById('detail-panel').classList.add('hidden')" class="text-slate-400 hover:text-slate-600 text-xl leading-none">×</button>
+      </div>
+      <div id="detail-body" class="p-6"></div>
+    </div>
+
+    <!-- ── Live audit output (legacy POST result) ── -->
+    <div id="audit-output-wrap" class="hidden fade-in bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+      <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+        <h2 class="font-semibold text-slate-700 flex items-center gap-2">
+          <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3"/>
+          </svg>
+          Pre-Flight Script Output
+        </h2>
+        <div id="audit-counts" class="flex gap-2 text-xs font-semibold"></div>
+      </div>
+      <pre id="audit-output" class="mono text-xs text-slate-600 p-6 bg-slate-50 max-h-72 overflow-auto leading-relaxed"></pre>
+    </div>
+
+    <!-- ── Live SSE Terminal ── -->
+    <div class="fade-in bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+      <!-- Header -->
+      <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+        <h2 class="font-semibold text-slate-700 flex items-center gap-2">
+          <svg class="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3"/>
+          </svg>
+          Live Terminal Stream
+          <span id="stream-status-badge" class="ml-2 text-xs font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-400">idle</span>
+        </h2>
+        <div class="flex items-center gap-2">
+          <button onclick="startStream('audit')"   id="btn-stream-audit"   class="stream-btn bg-blue-600 text-white">▶ Audit</button>
+          <button onclick="startStream('fix')"     id="btn-stream-fix"     class="stream-btn bg-amber-500 text-white">⚡ Fix</button>
+          <button onclick="startStream('dba')"     id="btn-stream-dba"     class="stream-btn bg-purple-600 text-white">🔏 DBA</button>
+          <button onclick="startStream('sandbox')" id="btn-stream-sandbox" class="stream-btn bg-emerald-600 text-white">🗄 Sandbox</button>
+          <button onclick="clearTerminal()"        id="btn-clear"          class="stream-btn bg-slate-700 text-slate-200">✕ Clear</button>
+        </div>
+      </div>
+      <!-- macOS-style title bar -->
+      <div class="terminal-titlebar">
+        <span class="terminal-dot" style="background:#ff5f57"></span>
+        <span class="terminal-dot" style="background:#febc2e"></span>
+        <span class="terminal-dot" style="background:#28c840"></span>
+        <span class="ml-3 text-xs text-slate-500 font-mono" id="terminal-cmd-label">releaseguard — bash</span>
+        <div class="ml-auto flex items-center gap-3">
+          <span id="stream-timer" class="text-xs text-slate-500 mono hidden"></span>
+          <span id="stream-exit-badge" class="hidden text-xs font-semibold px-2 py-0.5 rounded"></span>
+        </div>
+      </div>
+      <!-- Terminal body -->
+      <div class="terminal-window" id="terminal-output">
+        <span class="terminal-line cmd">ReleaseGuard AI — Live Terminal</span>
+        <span class="terminal-line" style="color:#8b949e">Click ▶ Audit, ⚡ Fix, 🔏 DBA, or 🗄 Sandbox to stream output here.</span>
+        <span class="terminal-cursor" id="terminal-cursor"></span>
+      </div>
+    </div>
+
+    <!-- ── Bottom row: Migration table + Rollback scripts ── -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+      <!-- Migration table -->
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-100">
+          <h2 class="font-semibold text-slate-700">Migration Inventory</h2>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="bg-slate-50 text-slate-400 text-xs uppercase tracking-wider">
+                <th class="text-left px-5 py-3 font-medium">Migration</th>
+                <th class="text-center px-4 py-3 font-medium">Rollback</th>
+                <th class="text-center px-4 py-3 font-medium">Destructive</th>
+                <th class="text-center px-4 py-3 font-medium">Risk</th>
+              </tr>
+            </thead>
+            <tbody id="migration-rows" class="divide-y divide-slate-50">
+              <tr><td colspan="4" class="px-5 py-4 text-slate-400 text-sm">Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Rollback scripts -->
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+          <h2 class="font-semibold text-slate-700">Rollback Scripts</h2>
+          <span class="text-xs text-slate-400">Auto-generated by ReleaseGuard AI</span>
+        </div>
+        <div id="rollback-scripts" class="divide-y divide-slate-100 max-h-80 overflow-auto">
+          <div class="p-5 text-slate-400 text-sm">Loading…</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Audit report markdown preview ── -->
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+      <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+        <h2 class="font-semibold text-slate-700">RELEASE_AUDIT.md Preview</h2>
+        <span class="text-xs text-slate-400 mono">RELEASE_AUDIT.md</span>
+      </div>
+      <pre id="audit-report" class="mono text-xs text-slate-600 p-6 bg-slate-50 max-h-96 overflow-auto leading-relaxed">Loading…</pre>
+    </div>
+
+  </main>
+
+  <!-- ── Toast ── -->
+  <div id="toast" class="fixed bottom-6 right-6 hidden fade-in z-50 bg-slate-800 text-white text-sm px-5 py-3 rounded-xl shadow-xl max-w-sm"></div>
+
+  <script>
+    // ─── State ────────────────────────────────────────────────────────────────
+    let currentAudit = null;
+
+    // ─── Score ring ───────────────────────────────────────────────────────────
+    function setScore(n) {
+      const ring = document.getElementById('score-ring');
+      const num  = document.getElementById('score-num');
+      const lbl  = document.getElementById('score-label');
+      const circumference = 314;
+      const offset = circumference - (n / 10) * circumference;
+      ring.style.strokeDashoffset = offset;
+
+      const color = n >= 8 ? '#ef4444' : n >= 5 ? '#f59e0b' : '#22c55e';
+      ring.style.stroke = color;
+      num.textContent = n;
+      num.style.color = color;
+
+      lbl.textContent = n >= 8 ? '🔴 Critical' : n >= 5 ? '🟡 Elevated' : '🟢 Acceptable';
+      lbl.style.color = color;
+    }
+
+    // ─── Status badge helpers ─────────────────────────────────────────────────
+    const BADGE = {
+      PASS: 'bg-green-100 text-green-700',
+      FAIL: 'bg-red-100 text-red-700',
+      WARN: 'bg-amber-100 text-amber-700',
+    };
+    const CARD_BORDER = {
+      PASS: 'border-green-200',
+      FAIL: 'border-red-200',
+      WARN: 'border-amber-200',
+    };
+
+    function setBadge(domain, status, issueCount) {
+      const badge = document.getElementById(`badge-${domain}`);
+      const card  = document.getElementById(`card-${domain}`);
+      const issues = document.getElementById(`issues-${domain}`);
+      badge.textContent = status;
+      badge.className = `status-badge text-xs font-bold px-2.5 py-1 rounded-full ${BADGE[status] || 'bg-slate-100 text-slate-400'}`;
+      card.className = card.className.replace(/border-\w+-200/g, '') + ` ${CARD_BORDER[status] || 'border-slate-200'}`;
+      issues.textContent = issueCount === 0 ? 'No issues found' : `${issueCount} issue${issueCount > 1 ? 's' : ''} found`;
+      issues.style.color = issueCount > 0 ? '#ef4444' : '#22c55e';
+    }
+
+    // ─── Migration table ──────────────────────────────────────────────────────
+    const RISK_CHIP = {
+      LOW:      'bg-green-50 text-green-700',
+      HIGH:     'bg-amber-50 text-amber-700',
+      CRITICAL: 'bg-red-50 text-red-700',
+    };
+    const TICK = `<svg class="w-4 h-4 text-green-500 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>`;
+    const CROSS = `<svg class="w-4 h-4 text-red-400 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>`;
+
+    function renderMigrations(rows) {
+      const tbody = document.getElementById('migration-rows');
+      if (!rows || rows.length === 0) { tbody.innerHTML = '<tr><td colspan="4" class="px-5 py-4 text-slate-400">No migrations found.</td></tr>'; return; }
+      tbody.innerHTML = rows.map(r => `
+        <tr class="hover:bg-slate-50 transition-colors">
+          <td class="px-5 py-3 mono text-xs text-slate-600 truncate max-w-xs" title="${r.name}">${r.name.replace('.up.sql','')}</td>
+          <td class="px-4 py-3 text-center">${r.hasRollback ? TICK : CROSS}</td>
+          <td class="px-4 py-3 text-center">${r.isDestructive ? `<span class="text-amber-500 font-semibold text-xs">YES</span>` : `<span class="text-slate-300 text-xs">—</span>`}</td>
+          <td class="px-4 py-3 text-center"><span class="text-xs font-semibold px-2 py-0.5 rounded-full ${RISK_CHIP[r.risk] || ''}">${r.risk}</span></td>
+        </tr>`).join('');
+    }
+
+    // ─── Rollback scripts ─────────────────────────────────────────────────────
+    function renderRollbacks(list) {
+      const el = document.getElementById('rollback-scripts');
+      if (!list || list.length === 0) { el.innerHTML = '<div class="p-5 text-slate-400 text-sm">No rollback scripts found.</div>'; return; }
+      el.innerHTML = list.map((r, i) => `
+        <div>
+          <button onclick="toggleRollback(${i})" class="w-full flex items-center justify-between px-5 py-3 text-left hover:bg-slate-50 transition-colors">
+            <span class="mono text-xs font-semibold text-slate-600">${r.name}</span>
+            <svg id="rollback-chevron-${i}" class="w-4 h-4 text-slate-400 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+            </svg>
+          </button>
+          <pre id="rollback-body-${i}" class="hidden mono text-xs text-slate-600 px-5 pb-4 bg-slate-50 leading-relaxed">${escHtml(r.content)}</pre>
+        </div>`).join('');
+    }
+
+    function toggleRollback(i) {
+      const body    = document.getElementById(`rollback-body-${i}`);
+      const chevron = document.getElementById(`rollback-chevron-${i}`);
+      body.classList.toggle('hidden');
+      chevron.style.transform = body.classList.contains('hidden') ? '' : 'rotate(180deg)';
+    }
+
+    // ─── Detail panel ─────────────────────────────────────────────────────────
+    function showDetail(domain) {
+      if (!currentAudit) return;
+      const d = currentAudit.domains[domain];
+      const panel = document.getElementById('detail-panel');
+      document.getElementById('detail-title').textContent = d.label;
+
+      let html = '';
+      if (d.issues && d.issues.length > 0) {
+        html += `<ul class="space-y-2 mb-4">` + d.issues.map(iss =>
+          `<li class="flex items-start gap-2 text-sm text-red-600">
+            <span class="mt-0.5 text-red-400">⚠</span>${escHtml(iss)}
+           </li>`).join('') + `</ul>`;
+      } else {
+        html += `<p class="text-green-600 text-sm font-medium mb-4">✓ No issues detected in this domain.</p>`;
+      }
+      if (d.detail) html += `<p class="text-xs text-slate-500 mt-2">${escHtml(d.detail)}</p>`;
+      if (d.rows) {
+        html += `<div class="mt-4 overflow-x-auto"><table class="w-full text-xs">
+          <thead><tr class="text-slate-400 uppercase tracking-wider border-b">
+            <th class="text-left py-2">Migration</th>
+            <th class="text-center py-2">Rollback</th>
+            <th class="text-center py-2">Risk</th>
+          </tr></thead><tbody class="divide-y divide-slate-50">` +
+          d.rows.map(r => `<tr>
+            <td class="py-2 mono text-slate-600">${r.name.replace('.up.sql','')}</td>
+            <td class="py-2 text-center">${r.hasRollback ? '✅' : '❌'}</td>
+            <td class="py-2 text-center"><span class="px-2 py-0.5 rounded-full font-semibold ${RISK_CHIP[r.risk] || ''}">${r.risk}</span></td>
+          </tr>`).join('') + `</tbody></table></div>`;
+      }
+
+      document.getElementById('detail-body').innerHTML = html;
+      panel.classList.remove('hidden');
+      panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    // ─── Render full audit data ───────────────────────────────────────────────
+    function renderAudit(data) {
+      currentAudit = data;
+      setScore(data.riskScore);
+      document.getElementById('version-badge').textContent = `v${data.version}`;
+
+      const { security, migrations, api } = data.domains;
+      setBadge('security',   security.status,   security.issues.length);
+      setBadge('migrations', migrations.status, migrations.issues.length);
+      setBadge('api',        api.status,        api.issues.length);
+
+      renderMigrations(migrations.rows);
+      renderRollbacks(data.rollbacks);
+      document.getElementById('audit-report').textContent = data.auditReport;
+
+      if (data.timestamp) {
+        const ts = document.getElementById('last-run');
+        ts.textContent = 'Last run: ' + new Date(data.timestamp).toLocaleTimeString();
+        ts.classList.remove('hidden');
+      }
+    }
+
+    // ─── Verdict banner ───────────────────────────────────────────────────────
+    function setVerdict(blocked, critical, high, medium) {
+      const el = document.getElementById('verdict-banner');
+      el.classList.remove('hidden');
+      if (blocked) {
+        el.className = 'fade-in rounded-xl p-4 flex items-center gap-3 border font-semibold text-sm bg-red-50 border-red-200 text-red-700';
+        el.innerHTML = `<span class="text-xl">🚫</span> <span>RELEASE BLOCKED — ${critical} critical, ${high} high finding${high !== 1 ? 's' : ''} must be resolved before deploying.</span>`;
+      } else if (medium > 0) {
+        el.className = 'fade-in rounded-xl p-4 flex items-center gap-3 border font-semibold text-sm bg-amber-50 border-amber-200 text-amber-700';
+        el.innerHTML = `<span class="text-xl">⚠️</span> <span>CAUTION — ${medium} medium finding${medium !== 1 ? 's' : ''} present. Review before deploying.</span>`;
+      } else {
+        el.className = 'fade-in rounded-xl p-4 flex items-center gap-3 border font-semibold text-sm bg-green-50 border-green-200 text-green-700';
+        el.innerHTML = `<span class="text-xl">✅</span> <span>Release may proceed. No critical or high severity findings detected.</span>`;
+      }
+    }
+
+    // ─── Run audit ────────────────────────────────────────────────────────────
+    async function runAudit() {
+      const btn  = document.getElementById('run-btn');
+      const icon = document.getElementById('run-icon');
+      btn.disabled = true;
+      btn.classList.add('opacity-70');
+      icon.classList.add('spin');
+      btn.querySelector('span') && (btn.querySelector('span').textContent = 'Running…');
+
+      try {
+        const res  = await fetch('/api/run-audit', { method: 'POST' });
+        const data = await res.json();
+
+        // Show script output
+        const wrap = document.getElementById('audit-output-wrap');
+        const pre  = document.getElementById('audit-output');
+        wrap.classList.remove('hidden');
+        pre.textContent = data.output || '(no output)';
+
+        // Count chips
+        const counts = document.getElementById('audit-counts');
+        counts.innerHTML = [
+          data.critical > 0 ? `<span class="px-2 py-0.5 rounded-full bg-red-100 text-red-700">${data.critical} critical</span>` : '',
+          data.high > 0     ? `<span class="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">${data.high} high</span>` : '',
+          data.medium > 0   ? `<span class="px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700">${data.medium} medium</span>` : '',
+        ].join('');
+
+        setVerdict(data.blocked, data.critical, data.high, data.medium);
+        if (data.audit) renderAudit(data.audit);
+
+        toast(data.blocked ? '🚫 Audit complete — release blocked.' : '✅ Audit complete — no blockers found.', data.blocked ? 'error' : 'success');
+      } catch (e) {
+        toast('Failed to run audit: ' + e.message, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.classList.remove('opacity-70');
+        icon.classList.remove('spin');
+      }
+    }
+
+    // ─── Toast ────────────────────────────────────────────────────────────────
+    let toastTimer;
+    function toast(msg, type = 'info') {
+      const el = document.getElementById('toast');
+      el.textContent = msg;
+      el.className = `fixed bottom-6 right-6 fade-in z-50 text-sm px-5 py-3 rounded-xl shadow-xl max-w-sm ${type === 'error' ? 'bg-red-600' : type === 'success' ? 'bg-green-600' : 'bg-slate-800'} text-white`;
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => el.classList.add('hidden'), 4000);
+    }
+
+    // ─── Utils ────────────────────────────────────────────────────────────────
+    function escHtml(s) {
+      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    // ─── SSE Live Terminal ────────────────────────────────────────────────────
+    let activeEventSource = null;
+    let streamStartTime   = null;
+    let timerInterval     = null;
+
+    const streamButtons = ['btn-stream-audit','btn-stream-fix','btn-stream-dba','btn-stream-sandbox'];
+
+    function setStreamButtons(disabled) {
+      streamButtons.forEach(id => {
+        const btn = document.getElementById(id);
+        if (btn) btn.disabled = disabled;
+      });
+    }
+
+    function setStreamStatus(label, colorClass) {
+      const badge = document.getElementById('stream-status-badge');
+      badge.textContent = label;
+      badge.className = `ml-2 text-xs font-medium px-2 py-0.5 rounded-full ${colorClass}`;
+    }
+
+    function terminalAppend(text, cls = '') {
+      const terminal = document.getElementById('terminal-output');
+      const cursor   = document.getElementById('terminal-cursor');
+      if (cursor) cursor.remove();
+
+      const span = document.createElement('span');
+      span.className = 'terminal-line' + (cls ? ' ' + cls : '');
+      span.textContent = text;
+      terminal.appendChild(span);
+
+      // Re-attach cursor at end
+      const cur = document.createElement('span');
+      cur.id = 'terminal-cursor';
+      cur.className = 'terminal-cursor';
+      terminal.appendChild(cur);
+
+      // Auto-scroll
+      terminal.scrollTop = terminal.scrollHeight;
+    }
+
+    function clearTerminal() {
+      const terminal = document.getElementById('terminal-output');
+      terminal.innerHTML = '<span class="terminal-cursor" id="terminal-cursor"></span>';
+      document.getElementById('stream-status-badge').textContent = 'idle';
+      document.getElementById('stream-status-badge').className = 'ml-2 text-xs font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-400';
+      document.getElementById('terminal-cmd-label').textContent = 'releaseguard — bash';
+      document.getElementById('stream-exit-badge').classList.add('hidden');
+      document.getElementById('stream-timer').classList.add('hidden');
+      clearInterval(timerInterval);
+    }
+
+    function startStream(mode) {
+      // Kill any existing stream
+      if (activeEventSource) {
+        activeEventSource.close();
+        activeEventSource = null;
+      }
+      clearInterval(timerInterval);
+
+      // Build URL
+      const params = new URLSearchParams();
+      if (mode === 'fix')     params.set('fix', '1');
+      if (mode === 'dba')     params.set('dba', '1');
+      if (mode === 'sandbox') params.set('sandbox', '1');
+      const url = '/api/stream-audit?' + params.toString();
+
+      // Update UI
+      const labels = {
+        audit:   '▶ releaseguard audit',
+        fix:     '⚡ releaseguard fix',
+        dba:     '🔏 releaseguard dba-signoff',
+        sandbox: '🗄 migration-sandbox',
+      };
+      clearTerminal();
+      document.getElementById('terminal-cmd-label').textContent = labels[mode] || mode;
+      setStreamStatus('running…', 'bg-blue-100 text-blue-700');
+      setStreamButtons(true);
+
+      // Start timer
+      streamStartTime = Date.now();
+      const timerEl = document.getElementById('stream-timer');
+      timerEl.classList.remove('hidden');
+      timerInterval = setInterval(() => {
+        const s = ((Date.now() - streamStartTime) / 1000).toFixed(1);
+        timerEl.textContent = s + 's';
+      }, 100);
+
+      // Open SSE connection
+      const es = new EventSource(url);
+      activeEventSource = es;
+
+      es.onmessage = function(ev) {
+        let msg;
+        try { msg = JSON.parse(ev.data); } catch(_) { return; }
+
+        switch (msg.type) {
+          case 'start':
+            terminalAppend('$ ' + msg.data, 'cmd');
+            break;
+
+          case 'line':
+            if (msg.data.trim() !== '') {
+              terminalAppend(msg.data);
+            }
+            break;
+
+          case 'done': {
+            clearInterval(timerInterval);
+            const ok = msg.exitCode === 0;
+            const elapsed = ((Date.now() - streamStartTime) / 1000).toFixed(2);
+            terminalAppend('');
+            terminalAppend(msg.data, ok ? 'done-ok' : 'done-err');
+            terminalAppend(`[Process exited with code ${msg.exitCode} in ${elapsed}s]`, ok ? 'done-ok' : 'done-err');
+
+            setStreamStatus(ok ? '✔ done' : '✖ failed', ok ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700');
+
+            const exitBadge = document.getElementById('stream-exit-badge');
+            exitBadge.textContent = `exit ${msg.exitCode}`;
+            exitBadge.className = `text-xs font-semibold px-2 py-0.5 rounded ${ok ? 'bg-green-800 text-green-200' : 'bg-red-800 text-red-200'}`;
+            exitBadge.classList.remove('hidden');
+
+            setStreamButtons(false);
+            es.close();
+            activeEventSource = null;
+
+            // Refresh audit data cards after run
+            if (mode !== 'sandbox') {
+              fetch('/api/audit').then(r => r.json()).then(renderAudit).catch(() => {});
+            }
+            break;
+          }
+
+          case 'error':
+            terminalAppend('[stream error] ' + msg.data, 'err');
+            setStreamStatus('error', 'bg-red-100 text-red-700');
+            setStreamButtons(false);
+            break;
+        }
+      };
+
+      es.onerror = function() {
+        clearInterval(timerInterval);
+        terminalAppend('[connection lost]', 'err');
+        setStreamStatus('disconnected', 'bg-slate-200 text-slate-500');
+        setStreamButtons(false);
+        es.close();
+        activeEventSource = null;
+      };
+    }
+
+    // ─── Boot: load static audit on page load ─────────────────────────────────
+    (async () => {
+      try {
+        const res  = await fetch('/api/audit');
+        const data = await res.json();
+        renderAudit(data);
+        // Set initial verdict based on static analysis
+        const { security, migrations, api } = data.domains;
+        const allIssues = [...security.issues, ...migrations.issues, ...api.issues];
+        const critCount = allIssues.filter(i => /CRITICAL/i.test(i)).length;
+        const highCount = allIssues.filter(i => /HIGH/i.test(i)).length;
+        setVerdict(critCount > 0 || highCount > 0, critCount, highCount, 0);
+      } catch (e) {
+        toast('Could not load audit data: ' + e.message, 'error');
+      }
+    })();
+  </script>
+</body>
+</html>

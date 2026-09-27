@@ -1,0 +1,454 @@
+openapi: "3.0.3"
+info:
+  title: Orders API
+  version: "2.1.0"
+  description: >
+    Orders microservice — REST API specification.
+
+    **v2.1.0 breaking changes:**
+    - `POST /api/v1/users` request body changed: `name` → `username`, added required `role` field.
+    - `GET /api/v1/orders` pagination removed; all orders returned in a single response.
+    - `PATCH /api/v1/orders/{id}` replaced by `PUT /api/v1/orders/{id}` (full replacement).
+    - `DELETE /api/v1/orders/{id}` is now a hard-delete; previously a soft-delete (status=cancelled).
+    - `price` field removed from `Order` and `OrderInput` schemas (column dropped from database).
+
+servers:
+  - url: https://api.example.com
+
+paths:
+  /api/v1/orders:
+    get:
+      summary: List all orders
+      description: Returns all orders. Pagination was removed in v2.1.0.
+      responses:
+        "200":
+          description: Array of orders
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Order"
+    post:
+      summary: Create an order
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrderInput"
+      responses:
+        "201":
+          description: Created order
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/v1/orders/bulk:
+    post:
+      summary: Bulk-create orders
+      description: Creates multiple orders in a single request. All orders are validated before any are inserted.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - orders
+              properties:
+                orders:
+                  type: array
+                  minItems: 1
+                  items:
+                    $ref: "#/components/schemas/OrderInput"
+      responses:
+        "201":
+          description: Array of created orders
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Order"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/v1/orders/export/csv:
+    get:
+      summary: Export orders as CSV
+      description: Returns all orders serialised as a CSV file.
+      responses:
+        "200":
+          description: CSV file
+          content:
+            text/csv:
+              schema:
+                type: string
+
+  /api/v1/orders/{id}:
+    get:
+      summary: Get order by ID
+      parameters:
+        - $ref: "#/components/parameters/IntId"
+      responses:
+        "200":
+          description: Order object
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+        "400":
+          $ref: "#/components/responses/BadId"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      summary: Replace an order (full update)
+      description: Replaces all fields of an existing order. Changed from PATCH in v2.1.0.
+      parameters:
+        - $ref: "#/components/parameters/IntId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrderInput"
+      responses:
+        "200":
+          description: Updated order
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+        "400":
+          $ref: "#/components/responses/BadId"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      summary: Hard-delete an order
+      description: Permanently removes the order. Changed from soft-delete in v2.1.0.
+      parameters:
+        - $ref: "#/components/parameters/IntId"
+      responses:
+        "200":
+          description: Deletion confirmed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted:
+                    type: boolean
+        "400":
+          $ref: "#/components/responses/BadId"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/users:
+    post:
+      summary: Create a user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserInput"
+      responses:
+        "201":
+          description: Created user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/v1/users/{id}:
+    get:
+      summary: Get user by ID
+      parameters:
+        - $ref: "#/components/parameters/IntId"
+      responses:
+        "200":
+          description: User object
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          $ref: "#/components/responses/BadId"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      summary: Partially update a user
+      parameters:
+        - $ref: "#/components/parameters/IntId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserInput"
+      responses:
+        "200":
+          description: Updated user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          $ref: "#/components/responses/BadId"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      summary: Delete a user
+      parameters:
+        - $ref: "#/components/parameters/IntId"
+      responses:
+        "204":
+          description: No Content
+        "400":
+          $ref: "#/components/responses/BadId"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/products:
+    get:
+      summary: List products
+      responses:
+        "200":
+          description: Array of products
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Product"
+    post:
+      summary: Create a product
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProductInput"
+      responses:
+        "201":
+          description: Created product
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+
+  /api/v1/products/{id}:
+    get:
+      summary: Get product by ID
+      parameters:
+        - $ref: "#/components/parameters/IntId"
+      responses:
+        "200":
+          description: Product object
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+        "400":
+          $ref: "#/components/responses/BadId"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      summary: Partially update a product
+      parameters:
+        - $ref: "#/components/parameters/IntId"
+      responses:
+        "200":
+          description: Updated product
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+        "400":
+          $ref: "#/components/responses/BadId"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /health:
+    get:
+      summary: Health check
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  version:
+                    type: string
+                    example: "2.1.0"
+
+  /api/v1/ping:
+    get:
+      summary: Ping (deprecated)
+      deprecated: true
+      description: Deprecated. Will be removed in v3.0. Use GET /health instead.
+      responses:
+        "200":
+          description: Pong
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  pong:
+                    type: boolean
+
+components:
+  parameters:
+    IntId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+
+  responses:
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    BadId:
+      description: id must be a positive integer
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+
+    Order:
+      type: object
+      properties:
+        id:
+          type: integer
+        user_id:
+          type: integer
+        product_id:
+          type: integer
+        quantity:
+          type: integer
+        status:
+          type: string
+          enum: [pending, shipped, delivered, cancelled]
+        created_at:
+          type: string
+          format: date-time
+
+    OrderInput:
+      type: object
+      required:
+        - user_id
+        - product_id
+        - quantity
+      properties:
+        user_id:
+          type: integer
+        product_id:
+          type: integer
+        quantity:
+          type: integer
+          minimum: 1
+        status:
+          type: string
+          enum: [pending, shipped, delivered]
+
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    UserInput:
+      type: object
+      required:
+        - username
+        - email
+        - role
+      properties:
+        username:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+
+    Product:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        sku:
+          type: string
+        price:
+          type: number
+          format: float
+        stock:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+
+    ProductInput:
+      type: object
+      required:
+        - name
+        - price
+      properties:
+        name:
+          type: string
+        sku:
+          type: string
+        price:
+          type: number
+          format: float
+        stock:
+          type: integer

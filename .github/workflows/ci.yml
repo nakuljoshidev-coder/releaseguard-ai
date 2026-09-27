@@ -1,0 +1,29 @@
+﻿name: ReleaseGuard AI — Pre-Flight CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  pre-flight-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Run ReleaseGuard Pre-Flight Check (Certified Mode)
+        run: node scripts/pre-flight-check.js --approve-db-risks
+
+      - name: Upload Release Audit Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-audit-report
+          path: RELEASE_AUDIT.md

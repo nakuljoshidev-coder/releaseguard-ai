@@ -406,3 +406,111 @@ Five-stage synthesis pipeline:
 ---
 
 *Session 2 additions by **IBM Bob Agent Mode** · ReleaseGuard AI v2.1.0 · 2025-07-18*
+
+---
+
+## Session 3 — Enterprise Visual Overhaul (Dashboard)
+
+> **Date:** 2025-07-18 (Session 3)
+> **Scope:** Full presentation-layer redesign of `dashboard/public/index.html` — zero backend changes.
+
+---
+
+## S3.1 — Objective
+
+Replace the Tailwind CDN-driven light-mode UI with a production-grade dark design system inspired by Linear, Vercel, and Cloudflare dashboards. All element IDs, `onclick` handlers, SSE event listeners, DOM update paths, and JS functions remained **100% intact**.
+
+---
+
+## S3.2 — Design System
+
+| Token | Value | Usage |
+|---|---|---|
+| Body background | `#090d16` | Page chrome |
+| Surface card | `#111827` | All cards, panels |
+| Surface deep | `#080c14` | Terminal body, code blocks, audit report |
+| Surface mid | `#0b0f17` | Header bar |
+| Border default | `#1a2540` | All card borders, dividers |
+| Text primary | `#f8fafc` | Headings, brand name |
+| Text secondary | `#94a3b8` | Table cells, card bodies |
+| Text muted | `#475569` | Subtitles, timestamps, breadcrumbs |
+| Text faint | `#334155` | Terminal placeholder, disabled states |
+| Accent blue | `#3b82f6` | Buttons, cursor, live dot glow |
+| Success green | `#4ade80` | Pass badges, done-ok terminal lines |
+| Warning amber | `#fbbf24` | Warn badges, elevated risk |
+| Error red | `#f87171` | Fail badges, done-err terminal lines |
+
+**Typography:** `Inter` (UI) + `JetBrains Mono` (terminal, code, monospace elements)  
+**Font smoothing:** `-webkit-font-smoothing: antialiased` + `-moz-osx-font-smoothing: grayscale`
+
+---
+
+## S3.3 — Component Changes
+
+### Header
+- Removed Tailwind CDN `<script>` entirely; replaced with self-contained CSS.
+- New 56px sticky bar with `RG` wordmark badge (blue gradient, ring glow).
+- Center cluster: pulsing green live dot ("System Active") + monospaced env tag `Production CI Gate v2.1.0`.
+- Primary button: `#1d4ed8` base, hover ring `rgba(59,130,246,.18)`, `scale(.97)` on press.
+
+### Risk Score Ring
+- Track ring recolored from `#e2e8f0` (white) to `#1a2540` (dark slate).
+- Score label now renders uppercase tokens: `CRITICAL / ELEVATED / ACCEPTABLE` — no emojis.
+
+### Domain Cards
+- Replaced emoji icon blocks with inline SVG glyphs (shield, cylinder DB, terminal window), each tinted by domain (blue / purple / green).
+- Status pills moved from Tailwind utility classes to semantic CSS tokens: `badge-ok`, `badge-fail`, `badge-warn`, `badge-idle`.
+- Labels translated: `PASS` → `OK`, `FAIL` → `BLOCKED`.
+- Card border color injected via `style.borderColor` with 30% alpha tint on status change.
+
+### Terminal Console
+- Control strip (buttons) separated from macOS-style titlebar by a clean `1px #1a2540` divider.
+- All emoji removed from stream buttons; replaced with text labels: `Audit`, `Fix`, `DBA Sign-off`, `Sandbox`, `Clear`.
+- Each button has its own dark color-token class (`sbtn-audit`, `sbtn-fix`, `sbtn-dba`, `sbtn-sandbox`, `sbtn-clear`).
+- Terminal body background `#080c14`, base text `#8b9ab4`, cursor `#3b82f6` with `border-radius: 1px`.
+- Custom scrollbar: `4px`, track `#080c14`, thumb `#1a2540`.
+
+### Verdict Banner & Toast
+- Both rebuilt without Tailwind — `style.cssText` injection with alpha-fill backgrounds, matching border colors.
+- Emoji icons replaced with inline SVGs (check circle / triangle warning / block X).
+
+### Migration Table
+- New `data-table` CSS: dark `#0c1523` header, `1px #0f1829` row dividers, hover `#0f1829`.
+- Risk chips: CSS classes `risk-low`, `risk-high`, `risk-critical` with alpha backgrounds.
+
+### Rollback Accordion
+- Replaced `<pre>` blocks inside Tailwind container with `rollback-toggle` / `rollback-body` CSS pattern.
+- Expanded content uses `#080c14` background and `#64748b` muted text.
+
+### RELEASE_AUDIT.md Preview
+- `#audit-report` now uses `#080c14` background, `#64748b` text, `11.5px` JetBrains Mono.
+
+---
+
+## S3.4 — What Was Not Changed
+
+| Area | Status |
+|---|---|
+| `dashboard/server.js` | Untouched — all routes, SSE handlers, child process logic intact |
+| All 38 element IDs | Verified present post-rewrite |
+| All `onclick` handlers | `runAudit()`, `startStream()`, `clearTerminal()`, `showDetail()`, `toggleRollback()` — all intact |
+| All JS functions | `setScore`, `setBadge`, `renderMigrations`, `renderRollbacks`, `showDetail`, `renderAudit`, `setVerdict`, `runAudit`, `toast`, `escHtml`, `setStreamButtons`, `setStreamStatus`, `terminalAppend`, `clearTerminal`, `startStream` — all present |
+| SSE event parsing | `onmessage` / `onerror` handlers, `start` / `line` / `done` / `error` event types — unchanged |
+| Boot fetch | `(async () => { fetch('/api/audit')... })()` — unchanged |
+
+---
+
+## S3.5 — Validation
+
+| Check | Result |
+|---|---|
+| 38 required element IDs present | Pass |
+| All onclick handler patterns present | Pass |
+| All 15 JS functions present | Pass |
+| Emoji characters in HTML | None found |
+| Tailwind CDN removed | Confirmed |
+| No horizontal scroll at 1080p | Confirmed (responsive grid with `@media` breakpoints) |
+
+---
+
+*Session 3 additions by **IBM Bob Agent Mode** · ReleaseGuard AI v2.1.0 · 2025-07-18*

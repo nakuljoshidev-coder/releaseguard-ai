@@ -1,4 +1,4 @@
-# 🛡️ ReleaseGuard AI
+# ReleaseGuard AI
 
 > **Pre-Flight Release Auditor** — an AI-powered CLI + dashboard that runs security, database-migration, and API-contract audits before every production deploy.
 
@@ -37,16 +37,16 @@ If the risk score breaches your threshold, the release is **BLOCKED** and a PR c
 
 | Feature | Description |
 |---|---|
-| 🔒 **Security & Middleware Audit** | Detects unauthenticated admin routes, missing rate-limiting, exposed system metrics |
-| 🗄️ **DB Migration Safety** | Flags destructive SQL (`DROP COLUMN`, `RENAME COLUMN`, missing `.down.sql`) |
-| 📄 **API Contract Drift** | Diffs `openapi.yaml` against live routes; catches breaking changes in "minor" releases |
-| ⚡ **SSE Live Terminal** | Streams audit output token-by-token to the dashboard in real time |
-| 🔄 **Auto Rollback Generation** | AI-writes `.down.sql` rollback scripts for every destructive migration |
-| 🤝 **DBA Sign-off Workflow** | One-click DBA approval gate inside the dashboard |
-| 🧪 **Migration Dry-Run Sandbox** | Runs migrations against an in-memory SQLite DB before touching production |
-| 📝 **Release Notes Synthesizer** | Auto-generates `RELEASE_NOTES.md` from git diff + audit findings |
-| 💬 **PR Comment Publisher** | Posts a structured audit report as a GitHub PR comment |
-| 🎯 **Risk Score Ring** | Visual 0–10 risk gauge with ELEVATED / CRITICAL / OK verdict |
+| **Security & Middleware Audit** | Detects unauthenticated admin routes, missing rate-limiting, exposed system metrics |
+| **DB Migration Safety** | Flags destructive SQL (`DROP COLUMN`, `RENAME COLUMN`, missing `.down.sql`) |
+| **API Contract Drift** | Diffs `openapi.yaml` against live routes; catches breaking changes in "minor" releases |
+| **SSE Live Terminal** | Streams audit output token-by-token to the dashboard in real time |
+| **Auto Rollback Generation** | AI-writes `.down.sql` rollback scripts for every destructive migration |
+| **DBA Sign-off Workflow** | One-click DBA approval gate inside the dashboard |
+| **Migration Dry-Run Sandbox** | Runs migrations against an in-memory SQLite DB before touching production |
+| **Release Notes Synthesizer** | Auto-generates `RELEASE_NOTES.md` from git diff + audit findings |
+| **PR Comment Publisher** | Posts a structured audit report as a GitHub PR comment |
+| **Risk Score Ring** | Visual 0–10 risk gauge with ELEVATED / CRITICAL / OK verdict |
 
 ---
 
@@ -152,7 +152,7 @@ The web dashboard (`npm run dashboard`) provides:
 
 ## Audit Domains
 
-### 🔒 Security & Middleware
+### Security & Middleware
 
 Checks performed:
 
@@ -161,7 +161,7 @@ Checks performed:
 - Unauthenticated endpoints exposing sensitive operations (DELETE user, purge orders, system metrics)
 - Undocumented endpoints not present in `openapi.yaml`
 
-### 🗄️ DB Migration Safety
+### DB Migration Safety
 
 Checks performed:
 
@@ -170,7 +170,7 @@ Checks performed:
 - Missing `.down.sql` rollback counterpart
 - Hard-delete patterns replacing soft-delete
 
-### 📄 API Contract Drift
+### API Contract Drift
 
 Checks performed:
 
